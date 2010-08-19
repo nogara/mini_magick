@@ -69,6 +69,8 @@ module MiniMagick
         run_command("identify", "-format", format_option("%h"), @path).split("\n")[0].to_i
       when "width"
         run_command("identify", "-format", format_option("%w"), @path).split("\n")[0].to_i
+      when "num_frames"
+        run_command("identify", @path).split("\n").count
       when "dimensions"
         run_command("identify", "-format", format_option("%w %h"), @path).split("\n")[0].split.map{|v|v.to_i}
       when "size"
@@ -90,7 +92,7 @@ module MiniMagick
 
     # Sends raw commands to imagemagick's mogrify command. The image path is automatically appended to the command
     def <<(*args)
-      run_command("mogrify", *args << @path)
+      run_command("convert", *args << @path)
     end
 
     # This is a 'special' command because it needs to change @path to reflect the new extension
@@ -98,7 +100,7 @@ module MiniMagick
     # pages (starting with 0).  You can choose which page you want to manipulate.  We default to the
     # first page.
     def format(format, page=0)
-      run_command("mogrify", "-format", format, @path)
+      run_command("convert", "-format", format, @path)
 
       old_path = @path.dup
       @path.sub!(/(\.\w*)?$/, ".#{format}")
@@ -120,7 +122,7 @@ module MiniMagick
     # Collapse images with sequences to the first frame (ie. animated gifs) and
     # preserve quality
     def collapse!
-      run_command("mogrify", "-quality", "100", "#{path}[0]")
+      run_command("convert", "-quality", "100", "#{path}[0]")
     end
 
     # Writes the temporary image that we are using for processing to the output path
@@ -145,7 +147,7 @@ module MiniMagick
 
       if MOGRIFY_COMMANDS.include?(guessed_command_name)
         args.push(@path) # push the path onto the end
-        run_command("mogrify", "-#{guessed_command_name}", *args)
+        run_command("convert", "-#{guessed_command_name}", *args)
         self
       else
         super(symbol, *args)
@@ -154,7 +156,7 @@ module MiniMagick
 
     # You can use multiple commands together using this method
     def combine_options(&block)
-      c = CommandBuilder.new('mogrify')
+      c = CommandBuilder.new('convert')
       block.call c
       c << @path
       run(c)
@@ -244,7 +246,12 @@ module MiniMagick
     end
     
     def command
-      "#{MiniMagick.processor} #{@command} #{@args.join(' ')}".strip
+      if @command == 'convert'
+        #for convert, uses last argument, the file, as first argument as well
+        "#{MiniMagick.processor} #{@command} #{@args[-1]} #{@args.join(' ')}".strip
+      else
+        "#{MiniMagick.processor} #{@command} #{@args.join(' ')}".strip
+      end
     end
     
     def method_missing(symbol, *args)
